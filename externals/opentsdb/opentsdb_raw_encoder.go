@@ -23,11 +23,19 @@ import (
 	"time"
 )
 
+type dedupe struct {
+	data    string
+	skipped bool
+	ts      int64
+	val     interface{}
+}
+
 // OpenTsdbRawEncoder generates a 'raw', line-based format of a message
 // suitable for ingest into OpenTSDB over TCP.
 type OpenTsdbRawEncoder struct {
-	config   *OpenTsdbRawEncoderConfig
-	hostname string
+	config       *OpenTsdbRawEncoderConfig
+	hostname     string
+	dedupeBuffer map[string]dedupe
 }
 
 type OpenTsdbRawEncoderConfig struct {
@@ -41,6 +49,8 @@ type OpenTsdbRawEncoderConfig struct {
 	FieldsToTags bool `toml:"fields_to_tags"`
 	// Add a host= tag (with value of os.Hostname) if missing
 	AddHostnameIfMissing bool `toml:"add_hostname_if_missing"`
+	// Maximum window size (seconds) for dedupe
+	DedupeFlush int64 `toml:"dedupe_window"`
 }
 
 func (oe *OpenTsdbRawEncoder) ConfigStruct() interface{} {
@@ -54,6 +64,7 @@ func (oe *OpenTsdbRawEncoder) ConfigStruct() interface{} {
 func (oe *OpenTsdbRawEncoder) Init(config interface{}) (err error) {
 	oe.config = config.(*OpenTsdbRawEncoderConfig)
 	oe.hostname, _ = os.Hostname()
+	oe.dedupeBuffer = make(map[string]dedupe)
 	// We need to split a value from the key somehow, default to '.'
 	if oe.config.TagNamePrefix != "" && oe.config.TagValuePrefix == "" {
 		oe.config.TagValuePrefix = "."
@@ -120,6 +131,7 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 	}
 
 	// add any tags from dynamic Message fields that have the TagNamePrefix
+	ftags := new(bytes.Buffer)
 	if oe.config.FieldsToTags {
 		fields := pack.Message.GetFields()
 		for _, field := range fields {
@@ -132,16 +144,50 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 				if k == "host" {
 					seenHostTag = true
 				}
-				buf.WriteString(fmt.Sprintf(" %s=%v", k, field.GetValue()))
+				ftags.WriteString(fmt.Sprintf(" %s=%v", k, field.GetValue()))
 			}
 		}
 	}
+	buf.Write(ftags.Bytes())
 
 	if !seenHostTag && oe.config.AddHostnameIfMissing && oe.hostname != "" {
 		buf.WriteString(fmt.Sprintf(" host=%s", oe.hostname))
 	}
 
 	buf.WriteString("\n")
+
+
+	// dedupe
+	if oe.config.DedupeFlush > 0 {
+		bufkey := fmt.Sprintf("%s:%s", metric, ftags)
+
+		if _, ok := oe.dedupeBuffer[bufkey]; ok {
+
+			// if we've already seen the value, add it to the buffer
+			if oe.dedupeBuffer[bufkey].val == value &&
+				timestamp.UnixNano()-oe.dedupeBuffer[bufkey].ts < oe.config.DedupeFlush*1e9 {
+				oe.dedupeBuffer[bufkey] = dedupe{data: buf.String(), skipped: true,
+					val: value, ts: oe.dedupeBuffer[bufkey].ts}
+				return nil, nil
+			}
+
+			// if the value's changed, and we've skipped it before (or it's been > the flush interval)
+			// return the stored data point, and the current one
+			if (oe.dedupeBuffer[bufkey].skipped ||
+				timestamp.UnixNano()-oe.dedupeBuffer[bufkey].ts >= oe.config.DedupeFlush*1e9) &&
+				oe.dedupeBuffer[bufkey].val != value {
+
+				tmp := new(bytes.Buffer)
+				tmp.WriteString(oe.dedupeBuffer[bufkey].data)
+				tmp.WriteString(buf.String())
+				buf = tmp
+
+			}
+		}
+		// track the last data point
+		oe.dedupeBuffer[bufkey] = dedupe{data: buf.String(), val: value, ts: timestamp.UnixNano()}
+	}
+
 	return buf.Bytes(), nil
 }
 

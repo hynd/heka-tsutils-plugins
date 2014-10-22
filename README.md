@@ -8,6 +8,7 @@ Tries to decouple some of Heka's Graphitisms, relies on a semi-formal, generic m
 
 * **A Go-based OpenTSDB encoder and decoder.**  Intended to work with Heka's TcpOutput, and various inputs (either existing [TCollector collectors](https://github.com/OpenTSDB/tcollector/tree/master/collectors/0) spawned from Process(Directory)Input's, FileInputs, UdpInputs etc).
 Most notably, the encoder supports OpenTSDB's "tags" which can be pulled from additional Heka Message fields, or delimited data embedded in the Metric name (making StatsD-generated metrics more flexible).
+The decoder supports a basic dedupe facility (emulating TCollector) where unchanging datapoints are discarded.  When the value for a metric/tag combination changes (or the `dedupe_window` is exceeded), both the last seen and current datapoints are sent to maintain graph slopes.
 * **A Go-based StatsD decoder**.  Intended to work with Heka's vanilla UdpInput (rather than the dedicated StatsdInput/StatAccumInput).  Creates more generic field-based messages which can be aggregated, further filtered, and encoded for outputs other than Graphite.
 * **A Lua-based StatsD aggregating Filter plugin.**  Emulates the functionality of the existing Go-based StatAccumInput.  Supports Counters, Gauges and Histograms.  Adds configurable percentiles.
 
