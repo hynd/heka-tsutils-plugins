@@ -54,7 +54,12 @@ func (d *OpenTsdbRawDecoder) SetDecoderRunner(dr DecoderRunner) {
 func (d *OpenTsdbRawDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 	err error) {
 
-	line := strings.Trim(pack.Message.GetPayload(), "\n")
+	line := strings.TrimSpace(pack.Message.GetPayload())
+
+        // Ignore empty lines
+        if len(line) == 0 {
+          return
+        }
 
 	// Strip any leading 'put 's
 	line = strings.TrimPrefix(line, "put ")
