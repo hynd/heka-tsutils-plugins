@@ -10,7 +10,7 @@
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
-#   Kieren Hynd <kieren@ticketmaster.com)
+#   Kieren Hynd (kieren@ticketmaster.com)
 #
 # ***** END LICENSE BLOCK *****/
 

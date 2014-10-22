@@ -73,7 +73,7 @@ Config:
 
     [StatsdFilter.config]
     quantiles = "50,95,99"
-    global_prefix = "stats."                                                                                             
+    global_prefix = "stats."
     send_idle_stats = true
 
 --]]
