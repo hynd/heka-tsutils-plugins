@@ -8,7 +8,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Kieren Hynd <kieren@ticketmaster.com)
+#   Kieren Hynd (kieren@ticketmaster.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -114,6 +114,7 @@ func (d *OpenTsdbRawDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 		}
 	}
 
+        pack.Message.SetType("opentsdb")
 	packs = []*PipelinePack{pack}
 	return
 }
