@@ -26,9 +26,9 @@ Supports a basic dedupe facility (emulating TCollector) where unchanging datapoi
 * `tagvalue_prefix` (string, optional, default: `"."`) - Used to differentiate embedded tag names from values
 * `ts_from_message` (bool, optional, default: `true`) - Set the timestamp based on the Message's `Timestamp` field or "Now()"
 * `fields_to_tags` (bool, optional, default: `true`) - Convert any fields prefixed with `tagname_prefix` to OpenTSDB tags
-* `add_hostname_if_missing` (bool, optional, default: `true`) - Add a "host=`os.Hostname()`" tag if none exists
 * `dedupe_window` (uint, optional, default: `0` - off) - Activate dedupe, defines maximum window (in seconds)
-
+* `tags_if_missing` (array, optional) - If set, an array of tags (`["tagk=tagv", "tagx=tagy"]`) to add to the output if not already present
+* `tags_override` (array, optional) - If set, an array of tags to add to the output, overriding any set with the same tag name
 
 ## StatsdDecoder
 A Go-based StatsD decoder.  Intended to work with Heka's vanilla UdpInput (rather than the dedicated StatsdInput/StatAccumInput).  Creates more generic field-based messages which can be aggregated, further filtered, and encoded for outputs other than Graphite.

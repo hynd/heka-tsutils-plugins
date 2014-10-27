@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
-	"os"
 	"strings"
 	"time"
 )
@@ -34,8 +33,9 @@ type dedupe struct {
 // suitable for ingest into OpenTSDB over TCP.
 type OpenTsdbRawEncoder struct {
 	config       *OpenTsdbRawEncoderConfig
-	hostname     string
 	dedupeBuffer map[string]dedupe
+        missingTags  map[string]string
+        overrideTags map[string]string
 }
 
 type OpenTsdbRawEncoderConfig struct {
@@ -47,15 +47,16 @@ type OpenTsdbRawEncoderConfig struct {
 	TsFromMessage bool `toml:"ts_from_message"`
 	// Add any Fields with TagNamePrefix as tags
 	FieldsToTags bool `toml:"fields_to_tags"`
-	// Add a host= tag (with value of os.Hostname) if missing
-	AddHostnameIfMissing bool `toml:"add_hostname_if_missing"`
 	// Maximum window size (seconds) for dedupe
 	DedupeFlush int64 `toml:"dedupe_window"`
+        // Array of static tags to add if missing
+        AddTagsIfMissing []string `toml:"tags_if_missing"`
+        // Array of static tags to override unconditionally
+        AddTagsOverride []string `toml:"tags_override"`
 }
 
 func (oe *OpenTsdbRawEncoder) ConfigStruct() interface{} {
 	return &OpenTsdbRawEncoderConfig{
-		AddHostnameIfMissing: true,
 		TsFromMessage:        true,
 		FieldsToTags:         true,
 	}
@@ -63,12 +64,30 @@ func (oe *OpenTsdbRawEncoder) ConfigStruct() interface{} {
 
 func (oe *OpenTsdbRawEncoder) Init(config interface{}) (err error) {
 	oe.config = config.(*OpenTsdbRawEncoderConfig)
-	oe.hostname, _ = os.Hostname()
 	oe.dedupeBuffer = make(map[string]dedupe)
+	oe.missingTags  = make(map[string]string)
+	oe.overrideTags = make(map[string]string)
 	// We need to split a value from the key somehow, default to '.'
 	if oe.config.TagNamePrefix != "" && oe.config.TagValuePrefix == "" {
 		oe.config.TagValuePrefix = "."
 	}
+
+        if len(oe.config.AddTagsIfMissing) > 0 {
+          for _, t := range oe.config.AddTagsIfMissing {
+	    kv := strings.SplitN(t, "=", 2)
+            if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
+              oe.missingTags[kv[0]] = kv[1]
+            }
+          }
+        }
+        if len(oe.config.AddTagsOverride) > 0 {
+          for _, t := range oe.config.AddTagsOverride {
+	    kv := strings.SplitN(t, "=", 2)
+            if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
+              oe.overrideTags[kv[0]] = kv[1]
+            }
+          }
+        }
 
 	return
 }
@@ -118,20 +137,18 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 	buf.WriteString(fmt.Sprint(value))
 
 	// tags
-	var seenHostTag bool
+        tagMap := make(map[string]interface{})
+        var tagKeys []string
 	// start with any tags that were embedded in the metric name
 	for _, tag := range tags {
 		kv := strings.SplitN(tag, oe.config.TagValuePrefix, 2)
 		if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
-			if strings.ToLower(kv[0]) == "host" {
-				seenHostTag = true
-			}
-			buf.WriteString(fmt.Sprintf("%s=%s", kv[0], kv[1]))
+                        tagMap[kv[0]] = kv[1]
+                        tagKeys = append(tagKeys, kv[0])
 		}
 	}
 
 	// add any tags from dynamic Message fields that have the TagNamePrefix
-	ftags := new(bytes.Buffer)
 	if oe.config.FieldsToTags {
 		fields := pack.Message.GetFields()
 		for _, field := range fields {
@@ -141,25 +158,41 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 					continue
 				}
 				k = strings.TrimLeft(k, oe.config.TagNamePrefix)
-				if k == "host" {
-					seenHostTag = true
-				}
-				ftags.WriteString(fmt.Sprintf(" %s=%v", k, field.GetValue()))
+                                tagMap[k] = field.GetValue()
+                                tagKeys   = append(tagKeys, k)
 			}
 		}
 	}
-	buf.Write(ftags.Bytes())
 
-	if !seenHostTag && oe.config.AddHostnameIfMissing && oe.hostname != "" {
-		buf.WriteString(fmt.Sprintf(" host=%s", oe.hostname))
-	}
+        // add any tags if they're missing
+        for k, v := range oe.missingTags {
+          if _, ok := tagMap[k]; !ok {
+            tagKeys   = append(tagKeys, k)
+            tagMap[k] = v
+          }
+        }
 
+        // override any tags unconditionally
+        for k, v := range oe.overrideTags {
+          if _, ok := tagMap[k]; !ok {
+            tagKeys = append(tagKeys, k)
+          }
+          tagMap[k] = v
+        }
+
+        // build the final tag string
+	tagString := new(bytes.Buffer)
+        for _, k := range tagKeys {
+          tagString.WriteString(fmt.Sprintf(" %s=%v", k, tagMap[k]))
+        }
+
+	buf.Write(tagString.Bytes())
 	buf.WriteString("\n")
 
 
 	// dedupe
 	if oe.config.DedupeFlush > 0 {
-		bufkey := fmt.Sprintf("%s:%s", metric, ftags)
+		bufkey := fmt.Sprintf("%s:%s", metric, tagString)
 
 		if _, ok := oe.dedupeBuffer[bufkey]; ok {
 
