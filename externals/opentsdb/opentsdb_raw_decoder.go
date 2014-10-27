@@ -56,10 +56,10 @@ func (d *OpenTsdbRawDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 
 	line := strings.TrimSpace(pack.Message.GetPayload())
 
-        // Ignore empty lines
-        if len(line) == 0 {
-          return
-        }
+	// Ignore empty lines
+	if len(line) == 0 {
+		return
+	}
 
 	// Strip any leading 'put 's
 	line = strings.TrimPrefix(line, "put ")
@@ -109,12 +109,14 @@ func (d *OpenTsdbRawDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 	// Add any tags
 	for _, tag := range fields[3:] {
 		x := strings.SplitN(tag, "=", 2)
-		if err = d.addStatField(pack, d.config.TagNamePrefix+x[0], x[1]); err != nil {
-			return
+		if len(x) == 2 {
+			if err = d.addStatField(pack, d.config.TagNamePrefix+x[0], x[1]); err != nil {
+				return
+			}
 		}
 	}
 
-        pack.Message.SetType("opentsdb")
+	pack.Message.SetType("opentsdb")
 	packs = []*PipelinePack{pack}
 	return
 }
