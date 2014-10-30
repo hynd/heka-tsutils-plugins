@@ -12,10 +12,9 @@ following fields:
 
   Fields[Metric]   (the StatsD 'bucket' name)
   Fields[Value]    (the numeric value of the metric)
-  Fields[Modifier] (the short code representing 'type' - "c", "g" or "ms")
+  Fields[Modifier] (the short code representing 'type' - "c", "g", "ms" or "s")
   Fields[Sampling] (the sample rate used by counters)
 
-The "set" type is currently unsupported.
 (See https://github.com/etsy/statsd/blob/master/docs/metric_types.md for info)
 
 The Heka StatsdDecoder plugin can be used in conjunction with a regular UdpInput
@@ -124,6 +123,10 @@ function process_message ()
       elseif modifier == "g" then
         buckets[metric].Fields.Value = value
         buckets[metric].Fields.Metric = global_prefix .. 'gauges.' .. metric
+      elseif modifier == "s" then
+        buckets[metric].Fields.Value = {}
+        buckets[metric].Fields.Value[value] = true
+        buckets[metric].Fields.Metric = global_prefix .. 'sets.' .. metric
       else
         buckets[metric].Fields.Value = value * (1/sampling)
         buckets[metric].Fields.Metric = global_prefix .. 'counters.' .. metric
@@ -135,6 +138,8 @@ function process_message ()
           buckets[metric].Fields.Value[#buckets[metric].Fields.Value+1] = value
       elseif modifier == "g" then
           buckets[metric].Fields.Value = value
+      elseif modifier == "s" then
+          buckets[metric].Fields.Value[value] = true
       else
           buckets[metric].Fields.Value = buckets[metric].Fields.Value + (value * (1/sampling))
       end
@@ -217,6 +222,15 @@ function timer_event(ns)
         msg.Fields.Metric = metric_temp
 
         if send_idle then msg.Fields.Value = 0 end
+
+      -- sets
+      elseif msg.Fields.Modifier == "s" then
+        local set_count = 0
+        for k, _ in pairs(msg.Fields.Value) do set_count = set_count + 1 end
+        msg.Fields.Value = set_count
+        inject_message(msg)
+
+        if send_idle then msg.Fields.Value = {} end
 
       -- gauges
       elseif msg.Fields.Modifier == "g" then

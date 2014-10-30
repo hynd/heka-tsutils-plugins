@@ -37,15 +37,14 @@ The Heka Message `Type` is set to "statsd".  The message received from the Heka 
 
 * `Fields[Metric]`   - the StatsD "bucket" name
 * `Fields[Value]`    - the numeric value of the metric
-* `Fields[Modifier]` - the short code representing "type" - **c**, **g** or **ms**
+* `Fields[Modifier]` - the short code representing "type" - **c**, **g**, **ms** or **s**
 * `Fields[Sampling]` - the sample rate used by counters
 
-The "set" type is currently unsupported.
 See https://github.com/etsy/statsd/blob/master/docs/metric_types.md for more info.
 
 
 ## statsd_aggregator.lua
-A Lua-based StatsD aggregating SandboxFilter.  Performs StatsD style aggregation (similar to the existing StatAccumInput) on a stream of messages decoded by the above `StatsdDecoder`.  Supports Counters, Gauges and Histograms.  Adds configurable percentiles.
+A Lua-based StatsD aggregating SandboxFilter.  Performs StatsD style aggregation (similar to the existing StatAccumInput) on a stream of messages decoded by the above `StatsdDecoder`.  Supports Counters, Gauges, Histograms (with configurable percentiles) and Sets.
 
 Upon each `ticker_interval`, separate messages of aggregated data will be generated and injected back into the router (analagous to StatsD's "flush").  The metric name will be in `Fields[Metric]` and value in `Fields[Value]`.
 
@@ -83,5 +82,4 @@ There may be a considerable number of aggregate messages flushed (a histogram ty
 
 ## Things To Do
 * Unit tests, benchmarking, docs...
-* Handle the StatsD "set" type.
-* More validation of OpenTSDB input (allowed characters, enforcing tags)
+* More validation of OpenTSDB input (allowed characters etc)
