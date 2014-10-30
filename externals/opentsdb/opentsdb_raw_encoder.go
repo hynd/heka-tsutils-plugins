@@ -23,7 +23,7 @@ import (
 )
 
 type dedupe struct {
-	data    string
+	data    []byte
 	skipped bool
 	ts      int64
 	val     interface{}
@@ -34,8 +34,8 @@ type dedupe struct {
 type OpenTsdbRawEncoder struct {
 	config       *OpenTsdbRawEncoderConfig
 	dedupeBuffer map[string]dedupe
-        missingTags  map[string]string
-        overrideTags map[string]string
+	missingTags  map[string]string
+	overrideTags map[string]string
 }
 
 type OpenTsdbRawEncoderConfig struct {
@@ -49,45 +49,45 @@ type OpenTsdbRawEncoderConfig struct {
 	FieldsToTags bool `toml:"fields_to_tags"`
 	// Maximum window size (seconds) for dedupe
 	DedupeFlush int64 `toml:"dedupe_window"`
-        // Array of static tags to add if missing
-        AddTagsIfMissing []string `toml:"tags_if_missing"`
-        // Array of static tags to override unconditionally
-        AddTagsOverride []string `toml:"tags_override"`
+	// Array of static tags to add if missing
+	AddTagsIfMissing []string `toml:"tags_if_missing"`
+	// Array of static tags to override unconditionally
+	AddTagsOverride []string `toml:"tags_override"`
 }
 
 func (oe *OpenTsdbRawEncoder) ConfigStruct() interface{} {
 	return &OpenTsdbRawEncoderConfig{
-		TsFromMessage:        true,
-		FieldsToTags:         true,
+		TsFromMessage: true,
+		FieldsToTags:  true,
 	}
 }
 
 func (oe *OpenTsdbRawEncoder) Init(config interface{}) (err error) {
 	oe.config = config.(*OpenTsdbRawEncoderConfig)
 	oe.dedupeBuffer = make(map[string]dedupe)
-	oe.missingTags  = make(map[string]string)
+	oe.missingTags = make(map[string]string)
 	oe.overrideTags = make(map[string]string)
 	// We need to split a value from the key somehow, default to '.'
 	if oe.config.TagNamePrefix != "" && oe.config.TagValuePrefix == "" {
 		oe.config.TagValuePrefix = "."
 	}
 
-        if len(oe.config.AddTagsIfMissing) > 0 {
-          for _, t := range oe.config.AddTagsIfMissing {
-	    kv := strings.SplitN(t, "=", 2)
-            if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
-              oe.missingTags[kv[0]] = kv[1]
-            }
-          }
-        }
-        if len(oe.config.AddTagsOverride) > 0 {
-          for _, t := range oe.config.AddTagsOverride {
-	    kv := strings.SplitN(t, "=", 2)
-            if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
-              oe.overrideTags[kv[0]] = kv[1]
-            }
-          }
-        }
+	if len(oe.config.AddTagsIfMissing) > 0 {
+		for _, t := range oe.config.AddTagsIfMissing {
+			kv := strings.SplitN(t, "=", 2)
+			if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
+				oe.missingTags[kv[0]] = kv[1]
+			}
+		}
+	}
+	if len(oe.config.AddTagsOverride) > 0 {
+		for _, t := range oe.config.AddTagsOverride {
+			kv := strings.SplitN(t, "=", 2)
+			if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
+				oe.overrideTags[kv[0]] = kv[1]
+			}
+		}
+	}
 
 	return
 }
@@ -137,14 +137,14 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 	buf.WriteString(fmt.Sprint(value))
 
 	// tags
-        tagMap := make(map[string]interface{})
-        var tagKeys []string
+	tagMap := make(map[string]interface{})
+	var tagKeys []string
 	// start with any tags that were embedded in the metric name
 	for _, tag := range tags {
 		kv := strings.SplitN(tag, oe.config.TagValuePrefix, 2)
 		if len(kv) == 2 && kv[0] != "" && kv[1] != "" {
-                        tagMap[kv[0]] = kv[1]
-                        tagKeys = append(tagKeys, kv[0])
+			tagMap[kv[0]] = kv[1]
+			tagKeys = append(tagKeys, kv[0])
 		}
 	}
 
@@ -158,39 +158,39 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 					continue
 				}
 				k = strings.TrimLeft(k, oe.config.TagNamePrefix)
-                                tagMap[k] = field.GetValue()
-                                tagKeys   = append(tagKeys, k)
+				tagMap[k] = field.GetValue()
+				tagKeys = append(tagKeys, k)
 			}
 		}
 	}
 
-        // add any tags if they're missing
-        for k, v := range oe.missingTags {
-          if _, ok := tagMap[k]; !ok {
-            tagKeys   = append(tagKeys, k)
-            tagMap[k] = v
-          }
-        }
+	// add any tags if they're missing
+	for k, v := range oe.missingTags {
+		if _, ok := tagMap[k]; !ok {
+			tagKeys = append(tagKeys, k)
+			tagMap[k] = v
+		}
+	}
 
-        // override any tags unconditionally
-        for k, v := range oe.overrideTags {
-          if _, ok := tagMap[k]; !ok {
-            tagKeys = append(tagKeys, k)
-          }
-          tagMap[k] = v
-        }
+	// override any tags unconditionally
+	for k, v := range oe.overrideTags {
+		if _, ok := tagMap[k]; !ok {
+			tagKeys = append(tagKeys, k)
+		}
+		tagMap[k] = v
+	}
 
-        // build the final tag string
+	// build the final tag string
 	tagString := new(bytes.Buffer)
-        for _, k := range tagKeys {
-          tagString.WriteString(fmt.Sprintf(" %s=%v", k, tagMap[k]))
-        }
+	for _, k := range tagKeys {
+		tagString.WriteString(fmt.Sprintf(" %s=%v", k, tagMap[k]))
+	}
 
 	buf.Write(tagString.Bytes())
 	buf.WriteString("\n")
 
-
 	// dedupe
+	var previous []byte
 	if oe.config.DedupeFlush > 0 {
 		bufkey := fmt.Sprintf("%s:%s", metric, tagString)
 
@@ -198,30 +198,26 @@ func (oe *OpenTsdbRawEncoder) Encode(pack *pipeline.PipelinePack) (output []byte
 
 			// if we've already seen the value, add it to the buffer
 			if oe.dedupeBuffer[bufkey].val == value &&
-				timestamp.UnixNano()-oe.dedupeBuffer[bufkey].ts < oe.config.DedupeFlush*1e9 {
-				oe.dedupeBuffer[bufkey] = dedupe{data: buf.String(), skipped: true,
-					val: value, ts: oe.dedupeBuffer[bufkey].ts}
+				(timestamp.UnixNano()-oe.dedupeBuffer[bufkey].ts < oe.config.DedupeFlush*1e9) {
+
+				oe.dedupeBuffer[bufkey] = dedupe{data: buf.Bytes(), skipped: true, val: value, ts: oe.dedupeBuffer[bufkey].ts}
 				return nil, nil
 			}
 
 			// if the value's changed, and we've skipped it before (or it's been > the flush interval)
 			// return the stored data point, and the current one
 			if (oe.dedupeBuffer[bufkey].skipped ||
-				timestamp.UnixNano()-oe.dedupeBuffer[bufkey].ts >= oe.config.DedupeFlush*1e9) &&
+				(oe.dedupeBuffer[bufkey].skipped && timestamp.UnixNano()-oe.dedupeBuffer[bufkey].ts >= oe.config.DedupeFlush*1e9)) &&
 				oe.dedupeBuffer[bufkey].val != value {
 
-				tmp := new(bytes.Buffer)
-				tmp.WriteString(oe.dedupeBuffer[bufkey].data)
-				tmp.WriteString(buf.String())
-				buf = tmp
-
+				previous = oe.dedupeBuffer[bufkey].data
 			}
 		}
 		// track the last data point
-		oe.dedupeBuffer[bufkey] = dedupe{data: buf.String(), val: value, ts: timestamp.UnixNano()}
+		oe.dedupeBuffer[bufkey] = dedupe{data: buf.Bytes(), val: value, ts: timestamp.UnixNano()}
 	}
 
-	return buf.Bytes(), nil
+	return append(previous, buf.Bytes()...), nil
 }
 
 func init() {
