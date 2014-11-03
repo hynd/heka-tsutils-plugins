@@ -159,7 +159,7 @@ function timer_event(ns)
     for _, msg in pairs(buckets) do
 
       -- histograms
-      if msg.Fields.modifier == "ms" and #msg.Fields.Value > 0 then
+      if msg.Fields.Modifier == "ms" and #msg.Fields.Value > 0 then
 
         local timers = msg.Fields.Value
         local stats = {}
