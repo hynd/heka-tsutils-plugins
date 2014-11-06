@@ -5,6 +5,10 @@ A few random (work-in-progress) plugins for [Heka](https://github.com/mozilla-se
 Mostly based around metrics (in particular [OpenTSDB](https://github.com/OpenTSDB/opentsdb) and [StatsD](https://github.com/etsy/statsd) integration).
 Tries to decouple some of Heka's Graphitisms, relies on a semi-formal, generic message structure (basically 'Metric' and 'Value' Heka message Fields), rather than pre-formatted Graphite payloads.
 
+To include in a Heka build, per the [docs](https://hekad.readthedocs.org/en/latest/installing.html#building-hekad-with-external-plugins), create/add a line to a __{heka root}/cmake/plugin_loader.cmake__ file:
+```
+add_external_plugin(git https://github.com/hynd/heka-tsutils-plugins master __ignore_root statsd opentsdb)
+```
 
 ## OpenTsdbRawDecoder
 A Go-based OpenTSDB decoder.  Works with various inputs, such as existing [TCollector collectors](https://github.com/OpenTSDB/tcollector/tree/master/collectors/0) spawned from Process(Directory)Input's, or FileInputs, UdpInputs etc.
