@@ -7,12 +7,6 @@ Parses a StatsD message into Heka Fields.
 Intended to work with Heka's vanilla UdpInput, aggregated by a Filter.
 
 Config:
-- payload_keep (bool, default false)
-    If true, maintain the original Payload in the new message.
-
-- msg_type (string, optional default "statsd")
-    Sets the message 'Type' header to the specified value.
-
 - metric_field (string, optional, default "Metric")
     Field name to use for the bucket name
 
@@ -23,7 +17,10 @@ Config:
     Field name to use for the stat's "modifier" (ie; "c", "ms" etc)
 
 - sampling_field (string, optional, default "Sampling")
-    Field name to use for the stat's sampling rate
+    Field name to use for the stat's sampling rate (value defaults to 1)
+
+- msg_type (string, optional, defaults to existing Type)
+    Sets the message 'Type' header to the specified value.
 
 
 *Example Heka Configuration*
@@ -45,8 +42,8 @@ Config:
 *Example Heka Message*
 
 :Timestamp: 2015-01-07 14:55:14 +0000 UTC
-:Type: statsd
-:Hostname: test.example.com
+:Type: NetworkInput
+:Hostname: 
 :Pid: 0
 :Uuid: 5b7a82ab-ac0b-4412-a7a1-ce9574bd5fbb
 :Logger: UdpInput
@@ -65,8 +62,7 @@ local metric_field   = read_config("metric_field") or "Metric"
 local value_field    = read_config("value_field") or "Value"
 local modifier_field = read_config("modifier_field") or "Modifier"
 local sampling_field = read_config("sampling_field") or "Sampling"
-local msg_type       = read_config("msg_type") or "statsd"
-local payload_keep   = read_config("payload_keep")
+local msg_type       = read_config("msg_type")
 
 local l = require 'lpeg'
 l.locale(l)
@@ -85,22 +81,25 @@ local grammar   = l.Ct(metric * ":" * value * pipe * modifier * sampling^0)
 
 function process_message ()
 
-  local msg = {
-    Type   = msg_type,
-    Fields = {}
-  }
-
   local line = read_message("Payload")
   local fields = grammar:match(line)
   if not fields then return -1 end
 
-  msg.Fields[metric_field]   = fields.metric
-  msg.Fields[value_field]    = fields.value
-  msg.Fields[modifier_field] = fields.modifier
-  msg.Fields[sampling_field] = fields.sampling
+  write_message("Fields["..metric_field.."]", fields.metric)
+  write_message("Fields["..value_field.."]", fields.value)
+  write_message("Fields["..modifier_field.."]", fields.modifier)
 
-  if payload_keep then msg.Payload = line end
+  -- set the sampling rate field (if there was one)
+  if fields.sampling then
+    write_message("Fields["..sampling_field.."]", fields.sampling)
+  else
+    write_message("Fields["..sampling_field.."]", 1)
+  end
 
-  inject_message(msg)
+  -- optionally overwrite Type
+  if msg_type then
+    write_message("Type", msg_type)
+  end
+
   return 0
 end
