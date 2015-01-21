@@ -79,7 +79,7 @@ function process_message()
       ts = os.time()
     end
 
-    add_to_payload(string.format("%s %s %s", metric, ts, value))
+    add_to_payload(string.format("put %s %s %s", metric, ts, value))
 
     local seen_hosttag = false
     -- add tags from dynamic fields
@@ -112,6 +112,7 @@ function process_message()
       add_to_payload(string.format(" host=%s", read_message("Hostname")))
     end
 
+    add_to_payload("\n")
     inject_payload()
     return 0
 end
