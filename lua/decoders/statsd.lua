@@ -83,12 +83,13 @@ local sampling  = pipe * "@" * lpeg.Cg(number, "sampling")
 
 local grammar   = l.Ct(metric * ":" * value * pipe * modifier * sampling^0)
 
-local msg = {
-  Type   = msg_type,
-  Fields = {}
-}
-
 function process_message ()
+
+  local msg = {
+    Type   = msg_type,
+    Fields = {}
+  }
+
   local line = read_message("Payload")
   local fields = grammar:match(line)
   if not fields then return -1 end

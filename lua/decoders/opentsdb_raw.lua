@@ -90,12 +90,13 @@ local tagset    = l.Cg(l.Cf(l.Ct("") * pair^0, rawset), "tags")
 
 local grammar   = l.Ct(metric * ts * value * tagset)
 
-local msg = {
-  Type   = msg_type,
-  Fields = {}
-}
-
 function process_message ()
+
+  local msg = {
+    Type   = msg_type,
+    Fields = {}
+  }
+
   local line = read_message("Payload")
   local fields = grammar:match(line)
   if not fields then return -1 end
