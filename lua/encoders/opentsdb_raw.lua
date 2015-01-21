@@ -68,7 +68,7 @@ end
 function process_message()
 
     local metric = read_message("Fields["..metric_field.."]")
-    local value  = tonumber(read_message("Fields["..value_field.."]"))
+    local value  = read_message("Fields["..value_field.."]")
 
     if not metric or not value then return -1 end
 
@@ -79,7 +79,7 @@ function process_message()
       ts = os.time()
     end
 
-    add_to_payload(string.format("%s %d %d", metric, ts, value))
+    add_to_payload(string.format("%s %s %s", metric, ts, value))
 
     local seen_hosttag = false
     -- add tags from dynamic fields
