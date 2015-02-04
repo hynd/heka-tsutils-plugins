@@ -113,7 +113,7 @@ local tag_key_delimiter   = read_config("fields_parse_key_delimiter") or "._k_"
 local tag_value_delimiter = read_config("fields_parse_value_delimiter") or "._v_"
 local tag_prefix          = read_config("fields_parse_prefix") or ""
 
--- convert a space-delimited string into a table of kv's, 
+-- convert a space-delimited string into a table of kv's,
 -- either splitting each token on '=', or setting the value
 -- to 'true'
 local function create_table(str)
@@ -187,7 +187,7 @@ function process_message ()
         end
 
         -- Fields to remove
-        if remove[name] then 
+        if remove[name] then
         -- Fields to rename
         elseif rename[name] then
           message.Fields[rename[name]] = value

@@ -41,7 +41,7 @@ Config:
 
 *Example Heka Message*
 
-2014/12/03 19:07:52 
+2014/12/03 19:07:52
 :Timestamp: Thu Dec 18 12:24:11 +0000 UTC
 :Type: metric
 :Hostname: test.example.com
@@ -49,7 +49,7 @@ Config:
 :Uuid: 190633d6-b11a-424c-ae73-3bcfb67c31fb
 :Logger: ProcessInput
 :Payload: put my.wonderful.metric 1418905451 42 product=wibble
-:EnvVersion: 
+:EnvVersion:
 :Severity: 7
 :Fields:
     | name:"name" type:string value:"my.wonderful.metric"

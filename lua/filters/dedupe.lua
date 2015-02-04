@@ -129,12 +129,12 @@ function process_message()
       if match and timestamp - buffer[key].timestamp < dedupe_window * 1e9 then
         buffer[key] = { message = message, data = variants, timestamp = buffer[key].timestamp, skipped = true }
         dedupe_count = dedupe_count + 1
-        return 0 
+        return 0
       end
 
       -- otherwise, if the value has changed and we've either skipped already or
       -- are outside the window, flush the previous message too
-      if (not match and buffer[key].skipped) or 
+      if (not match and buffer[key].skipped) or
           (buffer[key].skipped and timestamp - buffer[key].timestamp >= dedupe_window * 1e9) then
 
         inject_message(buffer[key].message)

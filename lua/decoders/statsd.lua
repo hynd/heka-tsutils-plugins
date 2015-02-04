@@ -48,7 +48,7 @@ Config:
 :Uuid: 5b7a82ab-ac0b-4412-a7a1-ce9574bd5fbb
 :Logger: UdpInput
 :Payload: deploys.test.myservice:3|ms|@7
-:EnvVersion: 
+:EnvVersion:
 :Severity: 7
 :Fields:
     | name:"Value" type:double value:3
