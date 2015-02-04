@@ -72,9 +72,9 @@ if variant_fields_str:len() > 0 then
   end
 end
 
-local buffer = {}
-local dedupe_count  = 0
-local buffer_size   = 0
+buffer = {}
+dedupe_count  = 0
+buffer_size   = 0
 
 function process_message()
 

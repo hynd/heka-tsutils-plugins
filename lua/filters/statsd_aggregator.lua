@@ -117,9 +117,9 @@ if percentiles_str:len() >0 then
   end
 end
 
-local buckets          = {}
-local lastTime         = os.time() * 1e9
-local metrics_received = 0
+buckets          = {}
+lastTime         = os.time() * 1e9
+metrics_received = 0
 
 function process_message ()
     local metric   = read_message("Fields["..metric_field.."]")

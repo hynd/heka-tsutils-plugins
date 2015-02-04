@@ -43,7 +43,7 @@ Config:
 
 :Timestamp: 2015-01-07 14:55:14 +0000 UTC
 :Type: NetworkInput
-:Hostname: 
+:Hostname:
 :Pid: 0
 :Uuid: 5b7a82ab-ac0b-4412-a7a1-ce9574bd5fbb
 :Logger: UdpInput
