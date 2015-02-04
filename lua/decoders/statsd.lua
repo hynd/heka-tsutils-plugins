@@ -68,14 +68,14 @@ local l = require 'lpeg'
 l.locale(l)
 
 local pipe      = l.P("|")
-local integer   = l.P("-")^-1 * lpeg.digit^1
+local integer   = l.P("-")^-1 * l.digit^1
 local double    = integer * ("." * integer)^0
 local number    = double * (l.S("Ee") * integer)^0 / tonumber
 
-local metric    = l.Cg((lpeg.alnum + lpeg.S("-._"))^1, "metric")
+local metric    = l.Cg((l.alnum + l.S("-._"))^1, "metric")
 local value     = l.Cg(number, "value")
-local modifier  = l.Cg(lpeg.S("gcms") * lpeg.P("s")^0, "modifier") * (1 - pipe)^0
-local sampling  = pipe * "@" * lpeg.Cg(number, "sampling")
+local modifier  = l.Cg(l.S("gcms") * l.P("s")^0, "modifier") * (1 - pipe)^0
+local sampling  = pipe * "@" * l.Cg(number, "sampling")
 
 local grammar   = l.Ct(metric * ":" * value * pipe * modifier * sampling^0)
 
