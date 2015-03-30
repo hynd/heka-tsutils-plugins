@@ -53,8 +53,8 @@ Config:
 require "string"
 require "os"
 
-local metric_field    = read_config("metric_field") or error("metric_field must be specified")
-local value_field     = read_config("value_field") or error("value_field must be specified")
+local metric_field    = read_config("metric_field") or "Metric"
+local value_field     = read_config("value_field") or "Value"
 local fields_to_tags  = read_config("fields_to_tags")
 local tag_prefix      = read_config("tag_prefix")
 local ts_from_message = read_config("ts_from_message")
@@ -90,7 +90,7 @@ function process_message()
         if not typ then break end
 
         -- don't add the metric/value fields as tags
-        if name ~= metric_field or name ~= value_field then
+        if name ~= metric_field and name ~= value_field then
 
             if tag_prefix_length > 0 then
               -- only add fields that match the tagname_prefix
