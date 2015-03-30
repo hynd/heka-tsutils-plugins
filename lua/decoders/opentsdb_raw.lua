@@ -8,26 +8,26 @@ Should work with various inputs, such as existing TCollector collectors spawned
 from ProcessInputs, or FileInputs, UdpInputs etc.
 
 Strips any (optional) leading "put "s, adds the timestamp to Heka's `Timestamp`
-field, the metric name and value to configurable fields (Fields[name] and
-Fields[data.value] by default) and any tags into separate dynamic Fields (with
+field, the metric name and value to configurable fields (Fields[Metric] and
+Fields[Value] by default) and any "tags" into separate dynamic Fields (with
 an optional prefix for the field name).
 
 Config:
+- metric_field (string, optional, default "Metric")
+    Field name to use for the metric name
+
+- value_field (string, optional, default "Value")
+    Field name to use for the metric value
+
+- tag_prefix (string, options, default "")
+    Prefix to add to any Fields derived from tags, to make Field identification
+    further down the pipeline easier.
+
 - payload_keep (bool, default false)
     If true, maintain the original Payload in the new message.
 
 - msg_type (string, optional default "opentsdb")
     Sets the message 'Type' header to the specified value.
-
-- name_field (string, optional, default "name")
-    Field name to use for the metric name
-
-- value_field (string, optional, default "data.value")
-    Field name to use for the metric value
-
-- tagname_prefix (string, options, default "tags.")
-    Prefix to add to any Fields derived from tags, to make Field idenitication
-    further down the pipeline easier.
 
 *Example Heka Configuration*
 
@@ -52,24 +52,24 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"name" type:string value:"my.wonderful.metric"
-    | name:"tags.product" type:string value:"wibble"
-    | name:"data.value" type:double value:42
+    | name:"Metric" type:string value:"my.wonderful.metric"
+    | name:"Value" type:double value:42
+    | name:"product" type:string value:"wibble"
 --]]
 
 
 local l = require 'lpeg'
 local dt = require 'date_time'
 
-local tagname_prefix = read_config("tagname_prefix") or "tags."
-local name_field     = read_config("name_field") or "name"
-local value_field    = read_config("value_field") or "data.value"
+local metric_field   = read_config("metric_field") or "Metric"
+local value_field    = read_config("value_field") or "Value"
+local tag_prefix     = read_config("tag_prefix")
 local msg_type       = read_config("msg_type") or "opentsdb"
 local payload_keep   = read_config("payload_keep")
 
 local function tagprefix(tag)
-  if tagname_prefix then
-    return tagname_prefix .. tag
+  if tag_prefix then
+    return tag_prefix .. tag
   end
   return tag
 end
@@ -101,10 +101,10 @@ function process_message ()
   local fields = grammar:match(line)
   if not fields then return -1 end
 
-  msg.Timestamp           = fields.timestamp
-  msg.Fields              = fields.tags
-  msg.Fields[name_field]  = fields.metric
-  msg.Fields[value_field] = fields.value
+  msg.Timestamp            = fields.timestamp
+  msg.Fields               = fields.tags
+  msg.Fields[metric_field] = fields.metric
+  msg.Fields[value_field]  = fields.value
 
   if payload_keep then msg.Payload = line end
 
