@@ -19,7 +19,7 @@ Config:
 - sampling_field (string, optional, default "Sampling")
     Field name to use for the stat's sampling rate (value defaults to 1)
 
-- msg_type (string, optional, defaults to existing Type)
+- msg_type (string, optional, defaults to "statsd")
     Sets the message 'Type' header to the specified value.
 
 
@@ -62,7 +62,7 @@ local metric_field   = read_config("metric_field") or "Metric"
 local value_field    = read_config("value_field") or "Value"
 local modifier_field = read_config("modifier_field") or "Modifier"
 local sampling_field = read_config("sampling_field") or "Sampling"
-local msg_type       = read_config("msg_type")
+local msg_type       = read_config("msg_type") or "statsd"
 
 local l = require 'lpeg'
 l.locale(l)
@@ -85,6 +85,9 @@ function process_message ()
   local fields = grammar:match(line)
   if not fields then return -1 end
 
+  -- set Type
+  write_message("Type", msg_type)
+
   write_message("Fields["..metric_field.."]", fields.metric)
   write_message("Fields["..value_field.."]", fields.value)
   write_message("Fields["..modifier_field.."]", fields.modifier)
@@ -94,11 +97,6 @@ function process_message ()
     write_message("Fields["..sampling_field.."]", fields.sampling)
   else
     write_message("Fields["..sampling_field.."]", 1)
-  end
-
-  -- optionally overwrite Type
-  if msg_type then
-    write_message("Type", msg_type)
   end
 
   return 0
