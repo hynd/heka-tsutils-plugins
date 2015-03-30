@@ -1,11 +1,52 @@
 # Heka Plugins
 
-A few random (work-in-progress) plugins for [Heka](https://github.com/mozilla-services/heka).
+A few plugins for [Heka](https://github.com/mozilla-services/heka).
 
 Mostly based around metrics (in particular [OpenTSDB](https://github.com/OpenTSDB/opentsdb) and [StatsD](https://github.com/etsy/statsd) integration).
 Tries to decouple some of Heka's Graphitisms, relies on a semi-formal, generic message structure (basically 'Metric' and 'Value' Heka message Fields), rather than pre-formatted Graphite payloads.
 
-To include in a Heka build, per the [docs](https://hekad.readthedocs.org/en/latest/installing.html#building-hekad-with-external-plugins), create/add a line to a __{heka root}/cmake/plugin_loader.cmake__ file:
+## Lua
+Additional info and config examples can be found in each of the .lua files.
+
+### decoders/opentsdb_raw.lua
+Parses an OpenTSDB (or TCollector) formatted message into Heka message Fields.
+Should work with various inputs, such as existing TCollector collectors spawned from ProcessInputs, or FileInputs, UdpInputs etc.
+
+Strips any (optional) leading "put "s, adds the timestamp to Heka's `Timestamp` field, the metric name and value to configurable fields (Fields[name] and Fields[data.value] by default) and any tags into separate dynamic Fields (with an optional prefix for the field name).
+
+### decoders/statsd.lua
+Parses a StatsD message into Heka Fields.
+Intended to work with Heka's vanilla UdpInput, aggregated by the statsd_aggregator.lua Filter (see below).
+
+### filters/statsd_aggregator.lua
+Performs StatsD style aggregation on a stream of data (similar to the existing StatAccumInput).
+Counters, Gauges, Histograms (with configurable percentiles) and Sets are supported.
+
+The fields_parse function can be used to extract field data embedded in the bucket name.
+
+Upon each timer_event, separate messages of aggregated data will be generated and injected back into the router (analagous to StatsD's "flush").
+There may be a considerable number of aggregate messages flushed (a histogram type will be at least 5 per metric, plus 3 for each percentile). You may need to increase the global \[hekad\] `max_timer_inject` configuration.
+
+### filters/dedupe.lua
+Emits a new stream of deduplicated messages.
+If the values of the variant_fields remain the same for successive datapoints, the message is withheld.  If any of those values change, or then difference between the current and previously seen message Timestamp exceeds the "`dedupe_window`", both the previous and current message are emitted (to maintain graph slopes).
+
+### filters/fieldfix.lua
+Performs some basic mutations on message Fields - add if not present, override, remove and rename.  New messages will be emitted with a new Type.
+
+### filters/heka_stats.lua
+Converts Heka's all-report JSON and memstat messages into individual "metric" type events.  Not really intended for long-term use, just to get stats into OpenTSDB for testing.
+
+### encoders/opentsdb_raw.lua
+Extracts data from message fields and generates JSON suitable for use with OpenTSDB's TCP input.
+
+### encoders/opentsdb_http.lua
+Extracts Field data from messages and generates some OpenTSDB-compliant JSON.
+
+
+## Go
+The above Lua plugins are better maintained than these.
+To include the Go plugins in a Heka build, per the [docs](https://hekad.readthedocs.org/en/latest/installing.html#building-hekad-with-external-plugins), create/add a line to a __{heka root}/cmake/plugin_loader.cmake__ file:
 ```
 add_external_plugin(git https://github.com/hynd/heka-tsutils-plugins master __ignore_root statsd opentsdb)
 ```
@@ -18,7 +59,6 @@ Strips any (optional) leading "put ", discards empty lines, performs a few basic
 Adds the timestamp to Heka's `Timestamp` field, the metric name to `Fields[Metric]` and value to `Fields[Value]` and splits any tags into separate dynamic Fields.  The Heka Message `Type` is set to "statsd".
 
 * `tagname_prefix` (string, optional) - Prefix to add to any fields derived from tags, to make Field identification further down the pipeline easier
-
 
 ## OpenTsdbRawEncoder
 A Go-based OpenTSDB encoder.  Works in conjunction with Heka's TcpOutput and messages following the format created by the OpenTsdbRawDecoder (ie; containing `Fields[Metric]` and `Fields[Value]`).
@@ -46,43 +86,6 @@ The Heka Message `Type` is set to "statsd".  The message received from the Heka 
 
 See https://github.com/etsy/statsd/blob/master/docs/metric_types.md for more info.
 
-
-## statsd_aggregator.lua
-A Lua-based StatsD aggregating SandboxFilter.  Performs StatsD style aggregation (similar to the existing StatAccumInput) on a stream of messages decoded by the above `StatsdDecoder`.  Supports Counters, Gauges, Histograms (with configurable percentiles) and Sets.
-
-Upon each `ticker_interval`, separate messages of aggregated data will be generated and injected back into the router (analagous to StatsD's "flush").  The metric name will be in `Fields[Metric]` and value in `Fields[Value]`.
-
-There may be a considerable number of aggregate messages flushed (a histogram type will be at least 5 per metric, plus 3 for each percentile). You may need to increase the global \[hekad\] `max_timer_inject` configuration.
-
-* `ticker_interval` (uint) - delay between "flushes" of aggregate data (implies that some counters and histograms will be reset)
-* `global_prefix` (string, optional) - Prefix every metric sent with a string
-* `percentiles` (string, optional, default: `"50,75,90,99"`) - For histograms, a comma-separated list of percentiles to calculate
-* `send_idle_stats` (bool, optional, default: `false`) - For "idle" metrics that haven't been received since the last flush (`ticker_interval`) we will send the previous seen value (for gauges) and a zero (for counters)
-* `calculate_rates` (bool, optional, default: `false`) - Calculate "rate" (over `ticker_interval`) for counter and histogram metrics
-* `type` (string, optional, default: `"statsd.agg"`) - Sets the message 'Type' header to the specified value.  It will be automatically and unavoidably prefixed with 'heka.sandbox.'
-
-### Example Heka Configuration
-```
-    [StatsdUdpInput]
-    type = "UdpInput"
-    address = ":8125"
-    parser_type = "regexp"
-    delimiter = "(?:$|\n)"
-    decoder = "StatsdDecoder"
-
-    [StatsdDecoder]
-
-    [StatsdFilter]
-    type = "SandboxFilter"
-    filename = "lua_filters/statsd_aggregator.lua"
-    ticker_interval = 10
-    message_matcher = "Type == 'statsd'"
-
-    [StatsdFilter.config]
-    quantiles = "50,95,99"
-    global_prefix = "stats."
-    send_idle_stats = true
-```
 
 ## Things To Do
 * Unit tests, benchmarking, docs...
