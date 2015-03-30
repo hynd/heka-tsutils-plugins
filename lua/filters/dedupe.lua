@@ -37,6 +37,10 @@ Config:
     The remaining Fields in the message are considered 'invariants' and
     are used to form a key along with the 'Logger' for the dedupe.
 
+- dedupe_key_field (string, optional)
+    If we've already precomputed a key that can be used to dedupe on, and it's
+    stored in a field, use that.
+
 - msg_type (string, optional, default "dedupe")
     Sets the message 'Type' to the specified value (which will also have
     'heka.sandbox.' automatically and unavoidably prefixed)
@@ -46,6 +50,10 @@ Config:
 
 - ticker_interval (uint)
     Frequency of self-stats reporting.
+- metric_field (string, optional, default "Metric")
+    Name of Field used to store the stat name.
+- value_field (string, optional, default "Value")
+    Name of Field used to store the stat value.
 
 *Example Heka Configuration*
 
@@ -59,11 +67,16 @@ Config:
 --]]
 
 require "string"
+require "table"
 
+_PRESERVATION_VERSION     = read_config("preservation_version") or 0
 local dedupe_window       = read_config("dedupe_window") or 0
+local dedupe_key          = read_config("dedupe_key_field")
 local variant_fields_str  = read_config("variant_fields") or ""
 local msg_type            = read_config("msg_type") or "dedupe"
 local payload_keep        = read_config("payload_keep")
+local metric_field        = read_config("metric_field") or "Metric"
+local value_field         = read_config("value_field") or "Value"
 
 local variant_fields = {}
 if variant_fields_str:len() > 0 then
@@ -83,7 +96,7 @@ function process_message()
     local timestamp   = read_message("Timestamp")
     local fields      = {}  -- all fields from the message
     local variants    = {}  -- fields that can change
-    local invariants  = {}  -- fields that form the dedup key
+    local invariants  = {}  -- fields that form the dedupe key
 
     -- populate the tables from the message Fields
     while true do
@@ -97,11 +110,17 @@ function process_message()
         fields[name] = value
     end
 
-    -- generate a string representation of the dedup key
-    local key = read_message("Logger")
-    -- XXX sort
-    for k,v in pairs(invariants) do
-      key = string.format("%s:%s=%s", key, k, v)
+    -- if we've been supplied a precomputed dedupe key, use it
+    if dedupe_key and fields[dedupe_key] then
+      key = fields[dedupe_key]
+    -- otherwise, generate a string from the sorted invariants
+    else
+      local keys = {}
+      for k,v in pairs(invariants) do
+        table.insert(keys, string.format("%s=%s", k, v))
+      end
+      table.sort(keys)
+      key = table.concat(keys, ":")
     end
 
     -- generate a new message
@@ -136,7 +155,6 @@ function process_message()
       -- are outside the window, flush the previous message too
       if (not match and buffer[key].skipped) or
           (buffer[key].skipped and timestamp - buffer[key].timestamp >= dedupe_window * 1e9) then
-
         inject_message(buffer[key].message)
       end
 
@@ -154,15 +172,15 @@ function process_message()
 end
 
 function timer_event(ns)
-    local summary_msg = {
-      Type        = msg_type,
-      Fields      = {}
-    }
-    summary_msg.Fields["name"] = "heka.dedupe.dedupe_count"
-    summary_msg.Fields["data.value"] = dedupe_count
-    inject_message(summary_msg)
+  local summary_msg = {
+    Type        = msg_type,
+    Fields      = {}
+  }
+  summary_msg.Fields[metric_field] = "heka.dedupe.saved"
+  summary_msg.Fields[value_field]  = dedupe_count
+  inject_message(summary_msg)
 
-    summary_msg.Fields["name"] = "heka.dedupe.buffer_size"
-    summary_msg.Fields["data.value"]  = buffer_size
-    inject_message(summary_msg)
+  summary_msg.Fields[metric_field] = "heka.dedupe.buffer_size"
+  summary_msg.Fields[value_field]  = buffer_size
+  inject_message(summary_msg)
 end
