@@ -8,17 +8,17 @@ Tries to decouple some of Heka's Graphitisms, relies on a semi-formal, generic m
 ## Lua
 Additional info and config examples can be found in each of the .lua files.
 
-### decoders/opentsdb_raw.lua
+### lua_decoders/opentsdb_raw.lua
 Parses an OpenTSDB (or TCollector) formatted message into Heka message Fields.
 Should work with various inputs, such as existing TCollector collectors spawned from ProcessInputs, or FileInputs, UdpInputs etc.
 
 Strips any (optional) leading "put "s, adds the timestamp to Heka's `Timestamp` field, the metric name and value to configurable fields (Fields[name] and Fields[data.value] by default) and any tags into separate dynamic Fields (with an optional prefix for the field name).
 
-### decoders/statsd.lua
+### lua_decoders/statsd.lua
 Parses a StatsD message into Heka Fields.
 Intended to work with Heka's vanilla UdpInput, aggregated by the statsd_aggregator.lua Filter (see below).
 
-### filters/statsd_aggregator.lua
+### lua_filters/statsd_aggregator.lua
 Performs StatsD style aggregation on a stream of data (similar to the existing StatAccumInput).
 Counters, Gauges, Histograms (with configurable percentiles) and Sets are supported.
 
@@ -27,20 +27,20 @@ The fields_parse function can be used to extract field data embedded in the buck
 Upon each timer_event, separate messages of aggregated data will be generated and injected back into the router (analagous to StatsD's "flush").
 There may be a considerable number of aggregate messages flushed (a histogram type will be at least 5 per metric, plus 3 for each percentile). You may need to increase the global \[hekad\] `max_timer_inject` configuration.
 
-### filters/dedupe.lua
+### lua_filters/dedupe.lua
 Emits a new stream of deduplicated messages.
 If the values of the variant_fields remain the same for successive datapoints, the message is withheld.  If any of those values change, or then difference between the current and previously seen message Timestamp exceeds the "`dedupe_window`", both the previous and current message are emitted (to maintain graph slopes).
 
-### filters/fieldfix.lua
+### lua_filters/fieldfix.lua
 Performs some basic mutations on message Fields - add if not present, override, remove and rename.  New messages will be emitted with a new Type.
 
-### filters/heka_stats.lua
+### lua_filters/heka_stats.lua
 Converts Heka's all-report JSON and memstat messages into individual "metric" type events.  Not really intended for long-term use, just to get stats into OpenTSDB for testing.
 
-### encoders/opentsdb_raw.lua
+### lua_encoders/opentsdb_raw.lua
 Extracts data from message fields and generates JSON suitable for use with OpenTSDB's TCP input.
 
-### encoders/opentsdb_http.lua
+### lua_encoders/opentsdb_http.lua
 Extracts Field data from messages and generates some OpenTSDB-compliant JSON.
 
 
