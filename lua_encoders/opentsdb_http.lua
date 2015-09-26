@@ -114,7 +114,7 @@ function process_message()
   end
 
   if not seen_hosttag and add_hostname then
-    msg.tags["host"] = read_message("Hostame")
+    msg.tags["host"] = read_message("Hostname")
   end
 
   -- add message to buffer
